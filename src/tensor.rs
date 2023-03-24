@@ -178,4 +178,18 @@ impl Tensor<D2, f32> {
     }
 }
 
+impl Clone for Tensor<D2, f32> {
+    fn clone(&self) -> Self {
+        let (m, n) = self.shape;
+        let dev = &self.device.0;
+        let output = Self::new_uninitialized(&self.device, m, n, false);
+        let mut encoder = dev
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        encoder.copy_buffer_to_buffer(&self.data, 0, &output.data, 0, (m * n) as u64);
+        dev.queue.submit(Some(encoder.finish()));
+        output
+    }
+}
+
 pub type Tensor2D<K> = Tensor<D2, K>;
