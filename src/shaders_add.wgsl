@@ -11,9 +11,9 @@ var<storage,read> add_rhs: array<f32>;
 var<storage,read_write> add_output: array<f32>;
 
 @compute
-@workgroup_size(256, 1, 1)
+@workgroup_size(16, 16, 1)
 fn add(@builtin(global_invocation_id) global_id: vec3<u32>) {
-  var x: u32 = global_id.x;
+  var x: u32 = global_id.x * 1024u + global_id.y;
   let len: u32 = arrayLength(&add_lhs);
   let start_k: u32 = x * 64u;
   let end_k: u32 = min(start_k + 64u, len);

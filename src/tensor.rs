@@ -86,7 +86,7 @@ impl Tensor<D2, f32> {
             c.set_pipeline(&dev.fill_pipeline);
             c.set_bind_group(0, &bind_group, &[]);
             c.insert_debug_marker("fill");
-            c.dispatch_workgroups(workgroups as u32, 1, 1);
+            c.dispatch_workgroups(1024, ((workgroups + 1023) / 1024) as u32, 1);
         };
         dev.queue.submit(Some(encoder.finish()));
     }
@@ -155,7 +155,7 @@ impl Tensor<D2, f32> {
             c.set_pipeline(&dev.add_pipeline);
             c.set_bind_group(0, &bind_group, &[]);
             c.insert_debug_marker("add");
-            c.dispatch_workgroups(workgroups as u32, 1, 1);
+            c.dispatch_workgroups(1024, ((workgroups + 1023) / 1024) as u32, 1);
         };
         dev.queue.submit(Some(encoder.finish()));
         Ok(output)
