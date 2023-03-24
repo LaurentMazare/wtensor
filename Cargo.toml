@@ -1,0 +1,24 @@
+[package]
+name = "wtensor"
+version = "0.1.0"
+authors = ["Laurent Mazare <lmazare@gmail.com>"]
+edition = "2021"
+
+description = "WebGPU based tensor library."
+repository = "https://github.com/LaurentMazare/wtensor"
+keywords = ["blas", "tensor", "machine-learning"]
+categories = ["science"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+
+[dependencies]
+wgpu = "0.15.1"
+pollster = "0.2"
+env_logger = "0.10"
+futures-intrusive = "0.4"
+bytemuck = "1.13"
+thiserror = "1"
+
+[dev-dependencies]
+anyhow = "1"
+clap = { version = "4.0.19", features = ["derive"] }
