@@ -115,6 +115,35 @@ impl Tensor<D2, f32> {
         Ok(output)
     }
 
+    pub fn add(&self, rhs: &Self) -> Result<Self> {
+        if self.shape != rhs.shape {
+            return Err(Error::DimensionMismatchBinaryOp {
+                op: "add",
+                lhs: self.shape.dims(),
+                rhs: rhs.shape.dims(),
+            });
+        }
+        let (m, n) = self.shape;
+        let dev = &self.device.0;
+        let output = Self::new_uninitialized(&self.device, m, n, false);
+        let bind_group = self
+            .device
+            .create_bind_group(1, &[&self.data, &rhs.data, &output.data]);
+        let mut encoder = dev
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        let workgroups = (m * n + 63) / 64;
+        {
+            let mut c = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+            c.set_pipeline(&dev.add_pipeline);
+            c.set_bind_group(0, &bind_group, &[]);
+            c.insert_debug_marker("add");
+            c.dispatch_workgroups(workgroups as u32, 1, 1);
+        };
+        dev.queue.submit(Some(encoder.finish()));
+        Ok(output)
+    }
+
     pub async fn to_vec(&self) -> Result<Vec<f32>> {
         let dev = &self.device.0;
         let size = self.shape.num_elements();

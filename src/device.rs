@@ -6,6 +6,7 @@ pub(crate) struct DeviceInternal {
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
     pub(crate) mm_pipeline: wgpu::ComputePipeline,
+    pub(crate) add_pipeline: wgpu::ComputePipeline,
 }
 
 #[derive(Clone)]
@@ -48,11 +49,18 @@ impl Device {
             module: &cs_module,
             entry_point: "gemm",
         });
+        let add_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: None,
+            module: &cs_module,
+            entry_point: "add",
+        });
 
         let internal = DeviceInternal {
             device,
             queue,
             mm_pipeline,
+            add_pipeline,
         };
         Ok(Self(std::rc::Rc::new(internal)))
     }
