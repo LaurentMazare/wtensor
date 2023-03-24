@@ -29,6 +29,8 @@ async fn execute_gpu_inner(d: &wtensor::Device, args: Args) -> anyhow::Result<Ve
     let duration = start.elapsed();
     let gflops = (sz as f32).powi(3) / duration.as_secs_f32() * 2e-9;
     println!("Ran computation in {duration:?} {gflops:.2} GFLOPS.");
+    let m1m2 = m1m2.add(&m1m2)?.to_vec().await?;
+    println!("Mm*2 result: [{:?}]", &m1m2[..m1m2.len().min(10)]);
     Ok(result)
 }
 

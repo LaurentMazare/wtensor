@@ -53,6 +53,23 @@ impl<S: Shape, K: Kind> Tensor<S, K> {
             device: device.clone(),
         }
     }
+
+    pub fn reshape<T: Shape>(self, shape: T) -> Result<Tensor<T, K>> {
+        if shape.num_elements() != self.shape.num_elements() {
+            return Err(Error::DimensionMismatchBinaryOp {
+                op: "reshape",
+                lhs: self.shape.dims(),
+                rhs: shape.dims(),
+            });
+        }
+        let tensor = Tensor {
+            shape,
+            data: self.data,
+            device: self.device,
+            phantom: self.phantom,
+        };
+        Ok(tensor)
+    }
 }
 
 impl Tensor<D2, f32> {

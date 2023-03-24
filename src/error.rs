@@ -7,11 +7,11 @@ pub enum Error {
 
     /// WebGPU request device errors.
     #[error(transparent)]
-    RequestDeviceError(#[from] wgpu::RequestDeviceError),
+    RequestDevice(#[from] wgpu::RequestDeviceError),
 
     /// WebGPU buffer async errors.
     #[error(transparent)]
-    BufferAsyncError(#[from] wgpu::BufferAsyncError),
+    BufferAsync(#[from] wgpu::BufferAsyncError),
 
     /// Receiver returned None.
     #[error("receiver returned None")]
