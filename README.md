@@ -6,5 +6,5 @@
 ![License](https://img.shields.io/crates/l/wtensor.svg)
 
 This repo contains some experimental code for a tensor library based on WebGPU
-kernels. CPU based tensors are out of scope, as well as providing static
-dimension checks.
+kernels (using [wgpu](https://wgpu.rs/)). CPU based tensors are out of scope, as
+well as providing static dimension checks.

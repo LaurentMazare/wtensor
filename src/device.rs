@@ -7,6 +7,7 @@ pub(crate) struct DeviceInternal {
     pub(crate) queue: wgpu::Queue,
     pub(crate) mm_pipeline: wgpu::ComputePipeline,
     pub(crate) add_pipeline: wgpu::ComputePipeline,
+    pub(crate) fill_pipeline: wgpu::ComputePipeline,
 }
 
 #[derive(Clone)]
@@ -39,21 +40,32 @@ impl Device {
         println!("Device: {device:?}");
         println!("AdapterInfo: {info:?}");
 
-        let cs_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shaders.wgsl"))),
-        });
+        let get_module = |s| {
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(s)),
+            })
+        };
+        let mm_module = get_module(include_str!("shaders_gemm.wgsl"));
+        let add_module = get_module(include_str!("shaders_add.wgsl"));
+        let fill_module = get_module(include_str!("shaders_fill.wgsl"));
         let mm_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: None,
             layout: None,
-            module: &cs_module,
+            module: &mm_module,
             entry_point: "gemm",
         });
         let add_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: None,
             layout: None,
-            module: &cs_module,
+            module: &add_module,
             entry_point: "add",
+        });
+        let fill_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: None,
+            module: &fill_module,
+            entry_point: "fill",
         });
 
         let internal = DeviceInternal {
@@ -61,6 +73,7 @@ impl Device {
             queue,
             mm_pipeline,
             add_pipeline,
+            fill_pipeline,
         };
         Ok(Self(std::rc::Rc::new(internal)))
     }
@@ -91,7 +104,7 @@ impl Device {
 
     pub(crate) fn create_bind_group(
         &self,
-        layout: u32,
+        pl: &wgpu::ComputePipeline,
         buffers: &[&wgpu::Buffer],
     ) -> wgpu::BindGroup {
         let entries: Vec<_> = buffers
@@ -104,7 +117,7 @@ impl Device {
             .collect();
         self.0.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &self.0.mm_pipeline.get_bind_group_layout(layout),
+            layout: &pl.get_bind_group_layout(0),
             entries: entries.as_slice(),
         })
     }

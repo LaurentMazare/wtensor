@@ -57,19 +57,38 @@ impl<S: Shape, K: Kind> Tensor<S, K> {
 
 impl Tensor<D2, f32> {
     pub fn new(device: &Device, width: usize, height: usize, v: f32) -> Self {
-        let mut tensor = Self::new_uninitialized(device, (width, height), true);
+        let mut tensor = Self::new_uninitialized(device, (width, height), false);
         tensor.fill(v);
         tensor
     }
 
     pub fn fill(&mut self, v: f32) {
-        // TODO: Use a shader rather than transfering the data around.
-        let data = vec![v; self.shape.num_elements()];
-        self.data
-            .slice(..)
-            .get_mapped_range_mut()
-            .copy_from_slice(bytemuck::cast_slice(&data));
-        self.data.unmap()
+        let (m, n) = self.shape;
+        let dev = &self.device.0;
+        let v_buffer = dev
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(&[v]),
+                usage: wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_DST
+                    | wgpu::BufferUsages::COPY_SRC,
+            });
+        let bind_group = self
+            .device
+            .create_bind_group(&dev.fill_pipeline, &[&self.data, &v_buffer]);
+        let mut encoder = dev
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        let workgroups = (m * n + 63) / 64;
+        {
+            let mut c = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+            c.set_pipeline(&dev.fill_pipeline);
+            c.set_bind_group(0, &bind_group, &[]);
+            c.insert_debug_marker("fill");
+            c.dispatch_workgroups(workgroups as u32, 1, 1);
+        };
+        dev.queue.submit(Some(encoder.finish()));
     }
 
     // TODO: Ensure that the same devices are used in self and rhs.
@@ -95,9 +114,10 @@ impl Tensor<D2, f32> {
                     | wgpu::BufferUsages::COPY_SRC,
             });
 
-        let bind_group = self
-            .device
-            .create_bind_group(0, &[&self.data, &rhs.data, &output.data, &param_buffer]);
+        let bind_group = self.device.create_bind_group(
+            &dev.mm_pipeline,
+            &[&self.data, &rhs.data, &output.data, &param_buffer],
+        );
         let mut encoder = dev
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -125,7 +145,7 @@ impl Tensor<D2, f32> {
         let output = Self::new_uninitialized(&self.device, (m, n), false);
         let bind_group = self
             .device
-            .create_bind_group(1, &[&self.data, &rhs.data, &output.data]);
+            .create_bind_group(&dev.add_pipeline, &[&self.data, &rhs.data, &output.data]);
         let mut encoder = dev
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
