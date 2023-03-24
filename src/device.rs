@@ -56,4 +56,28 @@ impl Device {
         };
         Ok(Self(std::rc::Rc::new(internal)))
     }
+
+    pub(crate) fn storage_buffer<K: crate::tensor::Kind>(
+        &self,
+        size: usize,
+        mapped_at_creation: bool,
+    ) -> wgpu::Buffer {
+        self.0.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: (size * K::size_of()) as u64,
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation,
+        })
+    }
+
+    pub(crate) fn transfer_buffer<K: crate::tensor::Kind>(&self, size: usize) -> wgpu::Buffer {
+        self.0.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: (size * K::size_of()) as u64,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
+    }
 }

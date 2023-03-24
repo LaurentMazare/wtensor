@@ -50,15 +50,7 @@ impl Tensor<D2, f32> {
         height: usize,
         mapped_at_creation: bool,
     ) -> Self {
-        let dev = &device.0;
-        let data = dev.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: (width * height * f32::size_of()) as u64,
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation,
-        });
+        let data = device.storage_buffer::<f32>(width * height, mapped_at_creation);
         Tensor {
             shape: (width, height),
             data,
@@ -144,17 +136,18 @@ impl Tensor<D2, f32> {
 
     pub async fn to_vec(&self) -> Result<Vec<f32>> {
         let dev = &self.device.0;
-        let size = self.shape.num_elements() as u64;
-        let staging_buffer = dev.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size,
-            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let size = self.shape.num_elements();
+        let staging_buffer = self.device.transfer_buffer::<f32>(size);
         let mut encoder = dev
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        encoder.copy_buffer_to_buffer(&self.data, 0, &staging_buffer, 0, size);
+        encoder.copy_buffer_to_buffer(
+            &self.data,
+            0,
+            &staging_buffer,
+            0,
+            (size * f32::size_of()) as u64,
+        );
         self.device.0.queue.submit(Some(encoder.finish()));
         let buffer_slice = staging_buffer.slice(..);
         let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
