@@ -1,7 +1,7 @@
 use crate::{Device, Error, Result};
 use wgpu::util::DeviceExt;
 
-pub trait Shape {
+pub trait Shape: Clone {
     fn num_dims(&self) -> usize;
     fn num_elements(&self) -> usize;
     fn dims(&self) -> Vec<usize>;
@@ -43,24 +43,21 @@ pub struct Tensor<S: Shape, K: Kind> {
     pub(crate) phantom: std::marker::PhantomData<K>,
 }
 
-impl Tensor<D2, f32> {
-    fn new_uninitialized(
-        device: &Device,
-        width: usize,
-        height: usize,
-        mapped_at_creation: bool,
-    ) -> Self {
-        let data = device.storage_buffer::<f32>(width * height, mapped_at_creation);
+impl<S: Shape, K: Kind> Tensor<S, K> {
+    fn new_uninitialized(device: &Device, shape: S, mapped_at_creation: bool) -> Self {
+        let data = device.storage_buffer::<K>(shape.num_elements(), mapped_at_creation);
         Tensor {
-            shape: (width, height),
+            shape,
             data,
             phantom: std::marker::PhantomData,
             device: device.clone(),
         }
     }
+}
 
+impl Tensor<D2, f32> {
     pub fn new(device: &Device, width: usize, height: usize, v: f32) -> Self {
-        let mut tensor = Self::new_uninitialized(device, width, height, true);
+        let mut tensor = Self::new_uninitialized(device, (width, height), true);
         tensor.fill(v);
         tensor
     }
@@ -87,7 +84,7 @@ impl Tensor<D2, f32> {
             });
         }
         let dev = &self.device.0;
-        let output = Self::new_uninitialized(&self.device, m, n, false);
+        let output = Self::new_uninitialized(&self.device, (m, n), false);
         let param_buffer = dev
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -125,7 +122,7 @@ impl Tensor<D2, f32> {
         }
         let (m, n) = self.shape;
         let dev = &self.device.0;
-        let output = Self::new_uninitialized(&self.device, m, n, false);
+        let output = Self::new_uninitialized(&self.device, (m, n), false);
         let bind_group = self
             .device
             .create_bind_group(1, &[&self.data, &rhs.data, &output.data]);
@@ -143,11 +140,13 @@ impl Tensor<D2, f32> {
         dev.queue.submit(Some(encoder.finish()));
         Ok(output)
     }
+}
 
-    pub async fn to_vec(&self) -> Result<Vec<f32>> {
+impl<S: Shape, K: Kind + bytemuck::AnyBitPattern> Tensor<S, K> {
+    pub async fn to_vec(&self) -> Result<Vec<K>> {
         let dev = &self.device.0;
         let size = self.shape.num_elements();
-        let staging_buffer = self.device.transfer_buffer::<f32>(size);
+        let staging_buffer = self.device.transfer_buffer::<K>(size);
         let mut encoder = dev
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -156,7 +155,7 @@ impl Tensor<D2, f32> {
             0,
             &staging_buffer,
             0,
-            (size * f32::size_of()) as u64,
+            (size * K::size_of()) as u64,
         );
         self.device.0.queue.submit(Some(encoder.finish()));
         let buffer_slice = staging_buffer.slice(..);
@@ -170,7 +169,7 @@ impl Tensor<D2, f32> {
             .ok_or(Error::ReceiverReturnedNone)??;
         // Gets contents of buffer
         let data = buffer_slice.get_mapped_range();
-        // Since contents are got in bytes, this converts these bytes back to f32
+        // Since contents are got in bytes, this converts these bytes back to K
         let result = bytemuck::cast_slice(&data).to_vec();
         drop(data);
         staging_buffer.unmap();
@@ -178,15 +177,20 @@ impl Tensor<D2, f32> {
     }
 }
 
-impl Clone for Tensor<D2, f32> {
+impl<S: Shape, K: Kind> Clone for Tensor<S, K> {
     fn clone(&self) -> Self {
-        let (m, n) = self.shape;
         let dev = &self.device.0;
-        let output = Self::new_uninitialized(&self.device, m, n, false);
+        let output = Self::new_uninitialized(&self.device, self.shape.clone(), false);
         let mut encoder = dev
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        encoder.copy_buffer_to_buffer(&self.data, 0, &output.data, 0, (m * n) as u64);
+        encoder.copy_buffer_to_buffer(
+            &self.data,
+            0,
+            &output.data,
+            0,
+            (self.shape.num_elements() * K::size_of()) as u64,
+        );
         dev.queue.submit(Some(encoder.finish()));
         output
     }
