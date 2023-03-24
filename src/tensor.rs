@@ -24,11 +24,11 @@ impl Shape for (usize, usize) {
 }
 
 pub trait Kind {
-    fn size_of(&self) -> usize;
+    fn size_of() -> usize;
 }
 
 impl Kind for f32 {
-    fn size_of(&self) -> usize {
+    fn size_of() -> usize {
         std::mem::size_of::<Self>()
     }
 }
@@ -44,18 +44,21 @@ pub struct Tensor<S: Shape, K: Kind> {
 }
 
 impl Tensor<D2, f32> {
-    pub fn new(device: &Device, width: usize, height: usize, v: f32) -> Self {
-        let data = device
-            .0
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                // TODO: use a shader for initialization rather than transferring data.
-                contents: bytemuck::cast_slice(&vec![v; width * height]),
-                usage: wgpu::BufferUsages::STORAGE
-                    | wgpu::BufferUsages::COPY_DST
-                    | wgpu::BufferUsages::COPY_SRC,
-            });
+    fn new_uninitialized(
+        device: &Device,
+        width: usize,
+        height: usize,
+        mapped_at_creation: bool,
+    ) -> Self {
+        let dev = &device.0;
+        let data = dev.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: (width * height * f32::size_of()) as u64,
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation,
+        });
         Tensor {
             shape: (width, height),
             data,
@@ -64,7 +67,23 @@ impl Tensor<D2, f32> {
         }
     }
 
-    // TODO: Ensure that the exact same devices are used.
+    pub fn new(device: &Device, width: usize, height: usize, v: f32) -> Self {
+        let mut tensor = Self::new_uninitialized(device, width, height, true);
+        tensor.fill(v);
+        tensor
+    }
+
+    pub fn fill(&mut self, v: f32) {
+        // TODO: Use a shader rather than transfering the data around.
+        let data = vec![v; self.shape.num_elements()];
+        self.data
+            .slice(..)
+            .get_mapped_range_mut()
+            .copy_from_slice(bytemuck::cast_slice(&data));
+        self.data.unmap()
+    }
+
+    // TODO: Ensure that the same devices are used in self and rhs.
     pub fn matmul(&self, rhs: &Self) -> Result<Self> {
         let (m, k1) = self.shape;
         let (k2, n) = rhs.shape;
@@ -76,14 +95,7 @@ impl Tensor<D2, f32> {
             });
         }
         let dev = &self.device.0;
-        let data = dev.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: (m * n) as u64,
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
-        });
+        let output = Self::new_uninitialized(&self.device, m, n, false);
         let param_buffer = dev
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -108,7 +120,7 @@ impl Tensor<D2, f32> {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: data.as_entire_binding(),
+                    resource: output.data.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -127,13 +139,7 @@ impl Tensor<D2, f32> {
             c.dispatch_workgroups(m as u32, n as u32, 1);
         };
         dev.queue.submit(Some(encoder.finish()));
-        let tensor = Tensor {
-            shape: (m, n),
-            device: self.device.clone(),
-            data,
-            phantom: std::marker::PhantomData,
-        };
-        Ok(tensor)
+        Ok(output)
     }
 
     pub async fn to_vec(&self) -> Result<Vec<f32>> {
