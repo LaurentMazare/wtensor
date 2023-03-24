@@ -119,7 +119,7 @@ impl Tensor<D2, f32> {
         let mut encoder = dev
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        let () = {
+        {
             let mut c = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
             c.set_pipeline(&dev.mm_pipeline);
             c.set_bind_group(0, &bind_group, &[]);

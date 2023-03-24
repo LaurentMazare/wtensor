@@ -21,8 +21,8 @@ async fn execute_gpu(args: Args) -> anyhow::Result<Vec<f32>> {
 
 async fn execute_gpu_inner(d: &wtensor::Device, args: Args) -> anyhow::Result<Vec<f32>> {
     let sz = args.size;
-    let m1 = wtensor::Tensor2D::<f32>::new(&d, sz, sz, 1.1);
-    let m2 = wtensor::Tensor2D::<f32>::new(&d, sz, sz, 2.);
+    let m1 = wtensor::Tensor2D::<f32>::new(d, sz, sz, 1.1);
+    let m2 = wtensor::Tensor2D::<f32>::new(d, sz, sz, 2.);
     let start = std::time::Instant::now();
     let m1m2 = m1.matmul(&m2)?;
     let result = m1m2.to_vec().await?;
