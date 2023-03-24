@@ -80,4 +80,24 @@ impl Device {
             mapped_at_creation: false,
         })
     }
+
+    pub(crate) fn create_bind_group(
+        &self,
+        layout: u32,
+        buffers: &[&wgpu::Buffer],
+    ) -> wgpu::BindGroup {
+        let entries: Vec<_> = buffers
+            .iter()
+            .enumerate()
+            .map(|(i, buffer)| wgpu::BindGroupEntry {
+                binding: i as u32,
+                resource: buffer.as_entire_binding(),
+            })
+            .collect();
+        self.0.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &self.0.mm_pipeline.get_bind_group_layout(layout),
+            entries: entries.as_slice(),
+        })
+    }
 }

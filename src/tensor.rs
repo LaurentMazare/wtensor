@@ -98,28 +98,9 @@ impl Tensor<D2, f32> {
                     | wgpu::BufferUsages::COPY_SRC,
             });
 
-        let bind_group = dev.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &dev.mm_pipeline.get_bind_group_layout(0),
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.data.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: rhs.data.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: output.data.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: param_buffer.as_entire_binding(),
-                },
-            ],
-        });
+        let bind_group = self
+            .device
+            .create_bind_group(0, &[&self.data, &rhs.data, &output.data, &param_buffer]);
         let mut encoder = dev
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
