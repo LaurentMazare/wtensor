@@ -23,22 +23,17 @@ impl Device {
             .request_adapter(&wgpu::RequestAdapterOptions::default())
             .await
             .ok_or_else(|| Error::NoAdapter(instance))?;
+        let info = adapter.get_info();
+        println!("AdapterInfo: {info:?}");
 
-        let mut limits = wgpu::Limits::downlevel_defaults();
-
-        // TODO: Make this configurable?
-        limits.max_buffer_size = 1 << 31;
-        limits.max_storage_buffer_binding_size = 1 << 30;
         let device_descriptor = wgpu::DeviceDescriptor {
             label: None,
             features: wgpu::Features::empty(),
-            limits,
+            limits: adapter.limits(),
         };
 
         let (device, queue) = adapter.request_device(&device_descriptor, None).await?;
-        let info = adapter.get_info();
         println!("Device: {device:?}");
-        println!("AdapterInfo: {info:?}");
 
         let get_module = |s| {
             device.create_shader_module(wgpu::ShaderModuleDescriptor {
