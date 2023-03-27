@@ -1,4 +1,4 @@
-use crate::{Device, Error, Result};
+use crate::{error::ierr, Device, Error, Result};
 use wgpu::util::DeviceExt;
 
 pub trait Shape: Clone {
@@ -211,6 +211,20 @@ impl<S: Shape, K: Kind + bytemuck::AnyBitPattern> Tensor<S, K> {
         drop(data);
         staging_buffer.unmap();
         Ok(result)
+    }
+}
+
+impl<K: Kind + bytemuck::AnyBitPattern> Tensor<(usize, usize), K> {
+    pub async fn to_mat(&self) -> Result<Vec<Vec<K>>> {
+        let vec = self.to_vec().await?;
+        if vec.len() != self.shape.num_elements() {
+            Err(ierr!("shape mismatch {} {:?}", vec.len(), self.shape))?
+        }
+        let (nrows, ncols) = self.shape;
+        let mat = (0..nrows)
+            .map(|row| vec[row * ncols..(row + 1) * ncols].to_vec())
+            .collect();
+        Ok(mat)
     }
 }
 

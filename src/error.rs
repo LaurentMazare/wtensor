@@ -28,6 +28,18 @@ pub enum Error {
         lhs: Vec<usize>,
         rhs: Vec<usize>,
     },
+
+    /// Internal error, these only happen when encountering a bug within this crate.
+    #[error("internal error {0:?}")]
+    InternalError(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+macro_rules! ierr {
+    ($($args: tt)*) => {
+        Error::InternalError(format!($($args)*))
+    }
+}
+
+pub(crate) use ierr;
