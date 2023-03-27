@@ -72,6 +72,35 @@ impl<S: Shape, K: Kind> Tensor<S, K> {
     }
 }
 
+impl<S: Shape, K: Kind + bytemuck::Pod> Tensor<S, K> {
+    pub fn from_slice(device: &Device, values: &[K], shape: S) -> Result<Self> {
+        if shape.num_elements() != values.len() {
+            return Err(Error::DimensionMismatchBinaryOp {
+                op: "reshape",
+                lhs: vec![values.len()],
+                rhs: shape.dims(),
+            });
+        }
+        let data = device
+            .0
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(values),
+                usage: wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_DST
+                    | wgpu::BufferUsages::COPY_SRC,
+            });
+        let tensor = Tensor {
+            shape,
+            data,
+            phantom: std::marker::PhantomData,
+            device: device.clone(),
+        };
+        Ok(tensor)
+    }
+}
+
 impl Tensor<D2, f32> {
     pub fn new(device: &Device, width: usize, height: usize, v: f32) -> Self {
         let mut tensor = Self::new_uninitialized(device, (width, height), false);
